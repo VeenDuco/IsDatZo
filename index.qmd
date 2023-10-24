@@ -1,0 +1,235 @@
+---
+title: "Is dat zo? Analyze van verkiezingsprogramma's met AI"
+author: "Duco Veen & Olya Kudina"
+format: html
+---
+
+## Methodologie
+
+We beginnen met het binnenhalen van de verkiezingsprogramma's van de verschillende partijen als pdfs. De volgende partij programma's zijn gebruikt[^1]:
+
+```{r}
+#| echo: false
+#| error: false
+#| warning: false
+
+# Set the directory path
+folder_path <- "docs"
+# List .pdf files
+pdf_files <- list.files(path = folder_path, pattern = "\\.pdf$", full.names = FALSE)
+# Remove the .pdf extension from each file name
+pdf_files_without_extension <- sub("\\.pdf$", "", pdf_files)
+# Print the list of .pdf files without the .pdf extension
+print(pdf_files_without_extension)
+```
+
+
+[^1]: Bij het laden van de pdf van het partijprogramma van 50-plus ontstonden problemen. Die is daarom niet meegenomen in de analyse.
+
+## Voorbereiden van de data
+
+Vervolgens moet de data voorbereid worden. Daarvoor wordt het volgende gedaan:
+
+- Invoer: PDF-bestanden in de 'docs' map.
+- Verwerking:
+    - Tekst uit elk PDF-pagina halen.
+    - Niet-ASCII-tekens opschonen.
+    - Opgeschone tekst opslaan met paginanummer.
+- Uitvoer: Opslaan van de verwerkte gegevens als 'extracted_texts.json'.
+
+```{mermaid}
+graph TD
+    A[Invoer: PDF-bestanden in 'docs' map] --> B[Tekst uit elk PDF-pagina halen]
+    B --> C[Niet-ASCII-tekens opschonen]
+    C --> D[Opgeschone tekst opslaan met paginanummer]
+    D --> E[Uitvoer: Opslaan als 'extracted_texts.json']
+```
+
+### Eerste interactie met AI
+
+De volgende stap is de verwerking van de data. Daarvoor wordt het volgende gedaan:
+
+1. **Invoer**:
+   - Geëxtraheerde teksten uit PDF's in `extracted_texts.json`.
+   - Onderwerp-vraag paren uit een CSV-bestand genaamd `query.csv`.
+   - Configuratie voor OpenAI uit `openaiconfig.ini`.
+
+2. **Verwerking**:
+   - Lees de laatst verwerkte staat uit `last_processed_state.txt`.
+   - Voor elk PDF-document en elk onderwerp-vraag paar:
+     - Verdeel de tekst van het document in delen om te passen binnen de API-limieten.
+     - Roep de OpenAI API aan met een prompt die het document, het onderwerp en de vraag bevat.
+     - Sla het antwoord van de API op in een tekstbestand binnen de `output_pdf` map.
+     - Sla de laatst verwerkte staat op na het verwerken van elk onderwerp voor het huidige document.
+
+3. **Uitvoer**:
+   - Tekstbestanden in de `output_pdf` map met de resultaten van de OpenAI API-analyse.
+
+
+
+```{mermaid}
+graph TD
+    A[Invoer: Geëxtraheerde teksten uit 'extracted_texts.json'] --> B[Lees laatst verwerkte staat]
+    A --> C[Lees onderwerp-vraag paren uit 'query.csv']
+    A --> D[Lees OpenAI configuratie uit 'openaiconfig.ini']
+    B --> E[Verdeel tekst in delen]
+    E --> F[Roep OpenAI API aan met prompt]
+    F --> G[Sla antwoord op in 'output_pdf']
+    G --> H[Sla laatst verwerkte staat op]
+    H --> I[Uitvoer: Tekstbestanden in 'output_pdf' map]
+```
+
+De onderwerpen en vragen zijn als volgt:
+
+```{r}
+#| echo: false
+#| error: false
+#| warning: false
+
+
+library(readr)
+library(knitr)
+library(kableExtra)
+query <- read_csv2("query.csv")
+query %>% kable()
+
+```
+
+**Prompt generatie**
+
+De prompt die gebruikt wordt is als volgt:
+
+> Op basis van de volgende inhoud uit het document "{pdf_name}", identificeer alle secties gerelateerd aan {topic}. Voor elke sectie, geef een citaat met de relevante tekst en paginanummer. Evalueer daarnaast of {question}. De inhoud die geëvalueerd moet worden is:
+
+Er wordt eerst gevraagd om relevante informatie te identificeren. Daarna pas om de vraag te beantwoorden. Dit is om het risico op halucinaties te verminderen. 
+
+### Eerste verwerking van de resultaten
+
+Om de uitvoer van de openAI API te verwerken wordt het volgende gedaan.
+
+1. **Invoer**:
+   - Identificeer tekstbestanden in de `output_pdf` map.
+
+2. **Verwerking**:
+   - Haal een lijst op van alle bestanden in de `output_pdf` map.
+   - Extraheer unieke combinaties van document en onderwerp uit bestandsnamen.
+   - Voor elke unieke combinatie:
+     - Lees de inhoud van elk bestand dat overeenkomt met de combinatie.
+     - Voeg de inhoud van alle bestanden samen.
+     - Sla de gecombineerde inhoud op in een nieuw bestand met de naam `document-onderwerp-combined.txt`.
+
+3. **Uitvoer**:
+   - Gecombineerde tekstbestanden in de `output_pdf` map.
+
+Laten we dit proces visualiseren met een diagram.
+
+Hier is een visuele weergave van de stroom van het script:
+
+```{mermaid}
+graph TD
+    A[Invoer: Tekstbestanden in 'output_pdf' map] --> B[Haal lijst van alle bestanden op]
+    B --> C[Extraheer unieke combinaties van document en onderwerp]
+    C --> D[Lees inhoud van elk bestand voor de combinatie]
+    D --> E[Voeg inhoud samen]
+    E --> F[Uitvoer: Sla gecombineerde inhoud op in 'document-onderwerp-combined.txt']
+```
+
+### Tweede interactie AI
+
+Tot slot willen we de resultaten van de eerste interactie met de AI verwerken en samenvatten. Dat doen we als volgt.
+
+1. **Invoer**:
+   - Gecombineerde tekstbestanden in de `output_pdf` map.
+   - Onderwerp-vraag paren uit een CSV-bestand genaamd `query.csv`.
+   - Configuratie voor OpenAI uit `openaiconfig.ini`.
+
+2. **Verwerking**:
+   - Voor elk gecombineerd tekstbestand:
+     - Haal het bijbehorende onderwerp en de vraag op.
+     - Lees de inhoud van het gecombineerde bestand.
+     - Roep de OpenAI API aan met een prompt die de vraag en de inhoud van het gecombineerde bestand bevat.
+     - Sla het samengevatte antwoord van de API op in een nieuw tekstbestand met de naam `document-onderwerp-summary.txt`.
+
+3. **Uitvoer**:
+   - Samengevatte tekstbestanden in de `output_pdf` map.
+
+Laten we dit proces visualiseren met een diagram.
+
+Hier is een visuele weergave van de stroom van het script:
+
+```{mermaid}
+graph TD
+    A[Invoer: Gecombineerde tekstbestanden in 'output_pdf' map] --> B[Haal onderwerp en vraag op]
+    A --> C[Lees OpenAI configuratie uit 'openaiconfig.ini']
+    B --> D[Lees inhoud van gecombineerd bestand]
+    D --> E[Roep OpenAI API aan voor samenvatting]
+    E --> F[Uitvoer: Sla samengevat antwoord op in 'document-onderwerp-summary.txt']
+```
+
+De prompt die gebruikt wordt is als volgt:
+
+> Op basis van de volgende inhoud, vat het antwoord samen op de vraag: "{question}" en citeer relevante delen waarop het antwoord is gebaseerd. Inhoud:
+
+Er wordt gevraagd om relevante informatie waarop het antwoord is gebaseerd mee terug te geven. Dit is om het risico op halucinaties te verminderen.
+
+### Samenvatting
+
+Als we alle stappen in één keer weergeven krijgen we het volgende:
+
+<!-- ![Samengevoegde Flow Diagram](https://ummcsnegloedxcrwlucz.supabase.co/storage/v1/object/public/chatgpt-diagrams/2023-10-24/dac97d72-4cbe-4b49-b752-c2b72e002fb5.png) -->
+
+1. **Script 1: PDF naar JSON**
+   - Invoer: PDF-bestanden in de 'docs' map.
+   - Tekst uit elk PDF-pagina halen.
+   - Niet-ASCII-tekens opschonen.
+   - Opgeschone tekst opslaan met paginanummer.
+   - Uitvoer: Opslaan als 'extracted_texts.json'.
+
+2. **Script 2: Analyse met OpenAI**
+   - Invoer: Geëxtraheerde teksten uit 'extracted_texts.json'.
+   - Lees de laatst verwerkte staat.
+   - Roep de OpenAI API aan met een prompt.
+   - Uitvoer: Tekstbestanden in de 'output_pdf' map.
+
+3. **Script 3: Combineer Tekstbestanden**
+   - Invoer: Tekstbestanden in de 'output_pdf' map.
+   - Haal een lijst op van alle bestanden in de 'output_pdf' map.
+   - Voeg de inhoud van alle bestanden samen.
+   - Uitvoer: Gecombineerde tekstbestanden in de 'output_pdf' map.
+
+4. **Script 4: Samenvatting met OpenAI**
+   - Invoer: Gecombineerde tekstbestanden in de 'output_pdf' map.
+   - Haal het bijbehorende onderwerp en de vraag op.
+   - Roep de OpenAI API aan voor samenvatting.
+   - Uitvoer: Samengevatte tekstbestanden in de 'output_pdf' map.
+
+
+```{mermaid}
+graph TD
+    subgraph "Script 1: PDF naar JSON"
+        A1[Invoer: PDF-bestanden in 'docs' map] --> B1[Tekst uit elk PDF-pagina halen]
+        B1 --> C1[Niet-ASCII-tekens opschonen]
+        C1 --> D1[Opgeschone tekst opslaan met paginanummer]
+        D1 --> E1[Uitvoer: Opslaan als 'extracted_texts.json']
+    end
+    subgraph "Script 2: Analyse met OpenAI"
+        A2[Invoer: Geëxtraheerde teksten uit 'extracted_texts.json'] --> B2[Lees laatst verwerkte staat]
+        B2 --> C2[Roep OpenAI API aan met prompt]
+        C2 --> D2[Uitvoer: Tekstbestanden in 'output_pdf' map]
+    end
+    subgraph "Script 3: Combineer Tekstbestanden"
+        A3[Invoer: Tekstbestanden in 'output_pdf' map] --> B3[Haal lijst van alle bestanden op]
+        B3 --> C3[Voeg inhoud samen]
+        C3 --> D3[Uitvoer: Gecombineerde tekstbestanden in 'output_pdf' map]
+    end
+    subgraph "Script 4: Samenvatting met OpenAI"
+        A4[Invoer: Gecombineerde tekstbestanden in 'output_pdf' map] --> B4[Haal onderwerp en vraag op]
+        B4 --> C4[Roep OpenAI API aan voor samenvatting]
+        C4 --> D4[Uitvoer: Samengevatte tekstbestanden in 'output_pdf' map]
+    end
+    E1 --> A2
+    D2 --> A3
+    D3 --> A4
+```
+
+  

@@ -169,3 +169,8 @@ cython_debug/
 *.ini
 # example code - not relevant here
 create_index_files_pdf.py
+.Rproj.user
+
+# 
+/index_files
+

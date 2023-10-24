@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.4.90">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Duco Veen &amp; Olya Kudina">
+
+<title>Is dat zo? Analyze van verkiezingsprogramma’s met AI</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="index_files/libs/clipboard/clipboard.min.js"></script>
+<script src="index_files/libs/quarto-html/quarto.js"></script>
+<script src="index_files/libs/quarto-html/popper.min.js"></script>
+<script src="index_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="index_files/libs/quarto-html/anchor.min.js"></script>
+<link href="index_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="index_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="index_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="index_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="index_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="index_files/libs/quarto-diagram/mermaid.min.js"></script>
+<script src="index_files/libs/quarto-diagram/mermaid-init.js"></script>
+<link href="index_files/libs/quarto-diagram/mermaid.css" rel="stylesheet">
+
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Is dat zo? Analyze van verkiezingsprogramma’s met AI</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Duco Veen &amp; Olya Kudina </p>
+          </div>
+  </div>
+    
+  
+    
+  </div>
+  
+
+</header>
+
+<section id="methodologie" class="level2">
+<h2 class="anchored" data-anchor-id="methodologie">Methodologie</h2>
+<p>We beginnen met het binnenhalen van de verkiezingsprogramma’s van de verschillende partijen als pdfs. De volgende partij programma’s zijn gebruikt<a href="#fn1" class="footnote-ref" id="fnref1" role="doc-noteref"><sup>1</sup></a>:</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code> [1] "BBB"    "BIJ1"   "bvnl"   "CDA"    "D66"    "FVD"    "GLPvdA" "JA21"  
+ [9] "NSC"    "pvdd"   "PVV"    "SGP"    "SP"     "Volt"   "VVD"   </code></pre>
+</div>
+</div>
+</section>
+<section id="voorbereiden-van-de-data" class="level2">
+<h2 class="anchored" data-anchor-id="voorbereiden-van-de-data">Voorbereiden van de data</h2>
+<p>Vervolgens moet de data voorbereid worden. Daarvoor wordt het volgende gedaan:</p>
+<ul>
+<li>Invoer: PDF-bestanden in de ‘docs’ map.</li>
+<li>Verwerking:
+<ul>
+<li>Tekst uit elk PDF-pagina halen.</li>
+<li>Niet-ASCII-tekens opschonen.</li>
+<li>Opgeschone tekst opslaan met paginanummer.</li>
+</ul></li>
+<li>Uitvoer: Opslaan van de verwerkte gegevens als ‘extracted_texts.json’.</li>
+</ul>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<div>
+<pre class="mermaid mermaid-js">graph TD
+    A[Invoer: PDF-bestanden in 'docs' map] --&gt; B[Tekst uit elk PDF-pagina halen]
+    B --&gt; C[Niet-ASCII-tekens opschonen]
+    C --&gt; D[Opgeschone tekst opslaan met paginanummer]
+    D --&gt; E[Uitvoer: Opslaan als 'extracted_texts.json']
+</pre>
+</div>
+</div>
+</div>
+</div>
+<section id="eerste-interactie-met-ai" class="level3">
+<h3 class="anchored" data-anchor-id="eerste-interactie-met-ai">Eerste interactie met AI</h3>
+<p>De volgende stap is de verwerking van de data. Daarvoor wordt het volgende gedaan:</p>
+<ol type="1">
+<li><strong>Invoer</strong>:
+<ul>
+<li>Geëxtraheerde teksten uit PDF’s in <code>extracted_texts.json</code>.</li>
+<li>Onderwerp-vraag paren uit een CSV-bestand genaamd <code>query.csv</code>.</li>
+<li>Configuratie voor OpenAI uit <code>openaiconfig.ini</code>.</li>
+</ul></li>
+<li><strong>Verwerking</strong>:
+<ul>
+<li>Lees de laatst verwerkte staat uit <code>last_processed_state.txt</code>.</li>
+<li>Voor elk PDF-document en elk onderwerp-vraag paar:
+<ul>
+<li>Verdeel de tekst van het document in delen om te passen binnen de API-limieten.</li>
+<li>Roep de OpenAI API aan met een prompt die het document, het onderwerp en de vraag bevat.</li>
+<li>Sla het antwoord van de API op in een tekstbestand binnen de <code>output_pdf</code> map.</li>
+<li>Sla de laatst verwerkte staat op na het verwerken van elk onderwerp voor het huidige document.</li>
+</ul></li>
+</ul></li>
+<li><strong>Uitvoer</strong>:
+<ul>
+<li>Tekstbestanden in de <code>output_pdf</code> map met de resultaten van de OpenAI API-analyse.</li>
+</ul></li>
+</ol>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<div>
+<pre class="mermaid mermaid-js">graph TD
+    A[Invoer: Geëxtraheerde teksten uit 'extracted_texts.json'] --&gt; B[Lees laatst verwerkte staat]
+    A --&gt; C[Lees onderwerp-vraag paren uit 'query.csv']
+    A --&gt; D[Lees OpenAI configuratie uit 'openaiconfig.ini']
+    B --&gt; E[Verdeel tekst in delen]
+    E --&gt; F[Roep OpenAI API aan met prompt]
+    F --&gt; G[Sla antwoord op in 'output_pdf']
+    G --&gt; H[Sla laatst verwerkte staat op]
+    H --&gt; I[Uitvoer: Tekstbestanden in 'output_pdf' map]
+</pre>
+</div>
+</div>
+</div>
+</div>
+<p>De onderwerpen en vragen zijn als volgt:</p>
+<div class="cell">
+<div class="cell-output-display">
+<table data-quarto-postprocess="true" class="table table-sm table-striped small">
+<thead>
+<tr class="header">
+<th style="text-align: left;" data-quarto-table-cell-role="th">topic</th>
+<th style="text-align: left;" data-quarto-table-cell-role="th">question</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">belasting</td>
+<td style="text-align: left;">de inhoud suggereert of de partij voor het verhogen van belasting op elektrische auto's is</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">oorlog in oekraine</td>
+<td style="text-align: left;">de inhoud suggereert of de partij steun wil blijven geven aan Oekraine en in welke vorm.</td>
+</tr>
+</tbody>
+</table>
+
+
+</div>
+</div>
+<p><strong>Prompt generatie</strong></p>
+<p>De prompt die gebruikt wordt is als volgt:</p>
+<blockquote class="blockquote">
+<p>Op basis van de volgende inhoud uit het document “{pdf_name}”, identificeer alle secties gerelateerd aan {topic}. Voor elke sectie, geef een citaat met de relevante tekst en paginanummer. Evalueer daarnaast of {question}. De inhoud die geëvalueerd moet worden is:</p>
+</blockquote>
+<p>Er wordt eerst gevraagd om relevante informatie te identificeren. Daarna pas om de vraag te beantwoorden. Dit is om het risico op halucinaties te verminderen.</p>
+</section>
+<section id="eerste-verwerking-van-de-resultaten" class="level3">
+<h3 class="anchored" data-anchor-id="eerste-verwerking-van-de-resultaten">Eerste verwerking van de resultaten</h3>
+<p>Om de uitvoer van de openAI API te verwerken wordt het volgende gedaan.</p>
+<ol type="1">
+<li><strong>Invoer</strong>:
+<ul>
+<li>Identificeer tekstbestanden in de <code>output_pdf</code> map.</li>
+</ul></li>
+<li><strong>Verwerking</strong>:
+<ul>
+<li>Haal een lijst op van alle bestanden in de <code>output_pdf</code> map.</li>
+<li>Extraheer unieke combinaties van document en onderwerp uit bestandsnamen.</li>
+<li>Voor elke unieke combinatie:
+<ul>
+<li>Lees de inhoud van elk bestand dat overeenkomt met de combinatie.</li>
+<li>Voeg de inhoud van alle bestanden samen.</li>
+<li>Sla de gecombineerde inhoud op in een nieuw bestand met de naam <code>document-onderwerp-combined.txt</code>.</li>
+</ul></li>
+</ul></li>
+<li><strong>Uitvoer</strong>:
+<ul>
+<li>Gecombineerde tekstbestanden in de <code>output_pdf</code> map.</li>
+</ul></li>
+</ol>
+<p>Laten we dit proces visualiseren met een diagram.</p>
+<p>Hier is een visuele weergave van de stroom van het script:</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<div>
+<pre class="mermaid mermaid-js">graph TD
+    A[Invoer: Tekstbestanden in 'output_pdf' map] --&gt; B[Haal lijst van alle bestanden op]
+    B --&gt; C[Extraheer unieke combinaties van document en onderwerp]
+    C --&gt; D[Lees inhoud van elk bestand voor de combinatie]
+    D --&gt; E[Voeg inhoud samen]
+    E --&gt; F[Uitvoer: Sla gecombineerde inhoud op in 'document-onderwerp-combined.txt']
+</pre>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section id="tweede-interactie-ai" class="level3">
+<h3 class="anchored" data-anchor-id="tweede-interactie-ai">Tweede interactie AI</h3>
+<p>Tot slot willen we de resultaten van de eerste interactie met de AI verwerken en samenvatten. Dat doen we als volgt.</p>
+<ol type="1">
+<li><strong>Invoer</strong>:
+<ul>
+<li>Gecombineerde tekstbestanden in de <code>output_pdf</code> map.</li>
+<li>Onderwerp-vraag paren uit een CSV-bestand genaamd <code>query.csv</code>.</li>
+<li>Configuratie voor OpenAI uit <code>openaiconfig.ini</code>.</li>
+</ul></li>
+<li><strong>Verwerking</strong>:
+<ul>
+<li>Voor elk gecombineerd tekstbestand:
+<ul>
+<li>Haal het bijbehorende onderwerp en de vraag op.</li>
+<li>Lees de inhoud van het gecombineerde bestand.</li>
+<li>Roep de OpenAI API aan met een prompt die de vraag en de inhoud van het gecombineerde bestand bevat.</li>
+<li>Sla het samengevatte antwoord van de API op in een nieuw tekstbestand met de naam <code>document-onderwerp-summary.txt</code>.</li>
+</ul></li>
+</ul></li>
+<li><strong>Uitvoer</strong>:
+<ul>
+<li>Samengevatte tekstbestanden in de <code>output_pdf</code> map.</li>
+</ul></li>
+</ol>
+<p>Laten we dit proces visualiseren met een diagram.</p>
+<p>Hier is een visuele weergave van de stroom van het script:</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<div>
+<pre class="mermaid mermaid-js">graph TD
+    A[Invoer: Gecombineerde tekstbestanden in 'output_pdf' map] --&gt; B[Haal onderwerp en vraag op]
+    A --&gt; C[Lees OpenAI configuratie uit 'openaiconfig.ini']
+    B --&gt; D[Lees inhoud van gecombineerd bestand]
+    D --&gt; E[Roep OpenAI API aan voor samenvatting]
+    E --&gt; F[Uitvoer: Sla samengevat antwoord op in 'document-onderwerp-summary.txt']
+</pre>
+</div>
+</div>
+</div>
+</div>
+<p>De prompt die gebruikt wordt is als volgt:</p>
+<blockquote class="blockquote">
+<p>Op basis van de volgende inhoud, vat het antwoord samen op de vraag: “{question}” en citeer relevante delen waarop het antwoord is gebaseerd. Inhoud:</p>
+</blockquote>
+<p>Er wordt gevraagd om relevante informatie waarop het antwoord is gebaseerd mee terug te geven. Dit is om het risico op halucinaties te verminderen.</p>
+</section>
+<section id="samenvatting" class="level3">
+<h3 class="anchored" data-anchor-id="samenvatting">Samenvatting</h3>
+<p>Als we alle stappen in één keer weergeven krijgen we het volgende:</p>
+<!-- ![Samengevoegde Flow Diagram](https://ummcsnegloedxcrwlucz.supabase.co/storage/v1/object/public/chatgpt-diagrams/2023-10-24/dac97d72-4cbe-4b49-b752-c2b72e002fb5.png) -->
+<ol type="1">
+<li><strong>Script 1: PDF naar JSON</strong>
+<ul>
+<li>Invoer: PDF-bestanden in de ‘docs’ map.</li>
+<li>Tekst uit elk PDF-pagina halen.</li>
+<li>Niet-ASCII-tekens opschonen.</li>
+<li>Opgeschone tekst opslaan met paginanummer.</li>
+<li>Uitvoer: Opslaan als ‘extracted_texts.json’.</li>
+</ul></li>
+<li><strong>Script 2: Analyse met OpenAI</strong>
+<ul>
+<li>Invoer: Geëxtraheerde teksten uit ‘extracted_texts.json’.</li>
+<li>Lees de laatst verwerkte staat.</li>
+<li>Roep de OpenAI API aan met een prompt.</li>
+<li>Uitvoer: Tekstbestanden in de ‘output_pdf’ map.</li>
+</ul></li>
+<li><strong>Script 3: Combineer Tekstbestanden</strong>
+<ul>
+<li>Invoer: Tekstbestanden in de ‘output_pdf’ map.</li>
+<li>Haal een lijst op van alle bestanden in de ‘output_pdf’ map.</li>
+<li>Voeg de inhoud van alle bestanden samen.</li>
+<li>Uitvoer: Gecombineerde tekstbestanden in de ‘output_pdf’ map.</li>
+</ul></li>
+<li><strong>Script 4: Samenvatting met OpenAI</strong>
+<ul>
+<li>Invoer: Gecombineerde tekstbestanden in de ‘output_pdf’ map.</li>
+<li>Haal het bijbehorende onderwerp en de vraag op.</li>
+<li>Roep de OpenAI API aan voor samenvatting.</li>
+<li>Uitvoer: Samengevatte tekstbestanden in de ‘output_pdf’ map.</li>
+</ul></li>
+</ol>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<div>
+<pre class="mermaid mermaid-js">graph TD
+    subgraph "Script 1: PDF naar JSON"
+        A1[Invoer: PDF-bestanden in 'docs' map] --&gt; B1[Tekst uit elk PDF-pagina halen]
+        B1 --&gt; C1[Niet-ASCII-tekens opschonen]
+        C1 --&gt; D1[Opgeschone tekst opslaan met paginanummer]
+        D1 --&gt; E1[Uitvoer: Opslaan als 'extracted_texts.json']
+    end
+    subgraph "Script 2: Analyse met OpenAI"
+        A2[Invoer: Geëxtraheerde teksten uit 'extracted_texts.json'] --&gt; B2[Lees laatst verwerkte staat]
+        B2 --&gt; C2[Roep OpenAI API aan met prompt]
+        C2 --&gt; D2[Uitvoer: Tekstbestanden in 'output_pdf' map]
+    end
+    subgraph "Script 3: Combineer Tekstbestanden"
+        A3[Invoer: Tekstbestanden in 'output_pdf' map] --&gt; B3[Haal lijst van alle bestanden op]
+        B3 --&gt; C3[Voeg inhoud samen]
+        C3 --&gt; D3[Uitvoer: Gecombineerde tekstbestanden in 'output_pdf' map]
+    end
+    subgraph "Script 4: Samenvatting met OpenAI"
+        A4[Invoer: Gecombineerde tekstbestanden in 'output_pdf' map] --&gt; B4[Haal onderwerp en vraag op]
+        B4 --&gt; C4[Roep OpenAI API aan voor samenvatting]
+        C4 --&gt; D4[Uitvoer: Samengevatte tekstbestanden in 'output_pdf' map]
+    end
+    E1 --&gt; A2
+    D2 --&gt; A3
+    D3 --&gt; A4
+</pre>
+</div>
+</div>
+</div>
+</div>
+</section>
+</section>
+<aside id="footnotes" class="footnotes footnotes-end-of-document" role="doc-endnotes">
+<hr>
+<ol>
+<li id="fn1"><p>Bij het laden van de pdf van het partijprogramma van 50-plus ontstonden problemen. Die is daarom niet meegenomen in de analyse.<a href="#fnref1" class="footnote-back" role="doc-backlink">↩︎</a></p></li>
+</ol>
+</aside>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    if (id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        for (let i = 0; i < 2; i++) {
+          container.appendChild(note.children[i].cloneNode(true));
+        }
+        return container.innerHTML
+      } else {
+        return note.innerHTML;
+      }
+    } else {
+      return note.innerHTML;
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      try { hash = new URL(url).hash; } catch {}
+      const id = hash.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note !== null) {
+        try {
+          const html = processXRef(id, note);
+          instance.setContent(html);
+        } finally {
+          instance.enable();
+          instance.show();
+        }
+      } else {
+        // See if we can fetch this
+        fetch(url.split('#')[0])
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.getElementById(id);
+          console.log(htmlDoc.body.innerHTML);
+          if (note !== null) {
+            const html = processXRef(id, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>
