@@ -171,6 +171,3 @@ cython_debug/
 create_index_files_pdf.py
 .Rproj.user
 
-# 
-/index_files
-
